@@ -53,6 +53,7 @@ android {
 flutter {
     source = "../.."
 }
+
 allprojects {
     tasks.withType(JavaCompile).configureEach {
         sourceCompatibility = JavaVersion.VERSION_17
