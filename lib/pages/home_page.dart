@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models/event.dart';
+import 'detail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,12 +22,43 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _load() async {
     final repo = AppState.of(context).repo;
-    final list = await repo.listAll();
+    final list = await repo.listActive();
     if (mounted) {
       setState(() {
         _events = list;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _deleteEvent(Event event) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除确认'),
+        content: Text('确定要删除"${event.title}"吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final repo = AppState.of(context).repo;
+      await repo.delete(event.id!);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('日程已删除')),
+        );
+      }
     }
   }
 
@@ -46,10 +78,27 @@ class _HomePageState extends State<HomePage> {
                       final e = _events[i];
                       final start = DateTime.fromMillisecondsSinceEpoch(e.startAt);
                       final end = start.add(Duration(minutes: e.durationMin));
-                      return ListTile(
-                        title: Text(e.title),
-                        subtitle: Text(
-                          '${_formatTime(start)} - ${_formatTime(end)} · ${e.durationMin}分钟',
+                      return Dismissible(
+                        key: ValueKey(e.id),
+                        direction: DismissDirection.startToEnd,
+                        onDismissed: (direction) async {
+                          if (direction == DismissDirection.startToEnd) {
+                            await _deleteEvent(e);
+                          }
+                        },
+                        child: ListTile(
+                          title: Text(e.title),
+                          subtitle: Text(
+                            '${_formatTime(start)} - ${_formatTime(end)} · ${e.durationMin}分钟',
+                          ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => DetailPage(event: e),
+                              ),
+                            );
+                          },
                         ),
                       );
                     },

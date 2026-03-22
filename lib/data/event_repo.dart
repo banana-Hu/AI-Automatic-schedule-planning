@@ -23,7 +23,8 @@ class EventRepo {
             title TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             source_text TEXT,
-            llm_raw TEXT
+            llm_raw TEXT,
+            is_archived INTEGER DEFAULT 0
           );
         ''');
         await db.execute('CREATE INDEX idx_events_start_at ON events(start_at);');
@@ -49,6 +50,18 @@ class EventRepo {
     return rows.map((m) => Event.fromMap(m)).toList();
   }
 
+  Future<List<Event>> listActive() async {
+    final database = await db;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final rows = await database.query(
+      'events',
+      where: 'is_archived = ? AND start_at >= ?',
+      whereArgs: [0, now],
+      orderBy: 'start_at ASC',
+    );
+    return rows.map((m) => Event.fromMap(m)).toList();
+  }
+
   Future<List<Event>> listInRange(int startMs, int endMs) async {
     final database = await db;
     final rows = await database.query(
@@ -58,6 +71,33 @@ class EventRepo {
       orderBy: 'start_at ASC',
     );
     return rows.map((m) => Event.fromMap(m)).toList();
+  }
+
+  Future<int> delete(int id) async {
+    final database = await db;
+    return database.delete('events', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> archiveExpired() async {
+    final database = await db;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final expiredEvents = await database.query(
+      'events',
+      where: 'is_archived = ? AND start_at < ?',
+      whereArgs: [0, now],
+    );
+    
+    for (final row in expiredEvents) {
+      final id = row['id'] as int;
+      await database.update(
+        'events',
+        {'is_archived': 1},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    
+    return expiredEvents.length;
   }
 
   Future<void> close() async {

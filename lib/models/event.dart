@@ -6,6 +6,7 @@ class Event {
   final int createdAt;
   final String? sourceText;
   final String? llmRaw;
+  final bool isArchived;
 
   Event({
     this.id,
@@ -15,6 +16,7 @@ class Event {
     required this.createdAt,
     this.sourceText,
     this.llmRaw,
+    this.isArchived = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +28,7 @@ class Event {
       'created_at': createdAt,
       'source_text': sourceText,
       'llm_raw': llmRaw,
+      'is_archived': isArchived ? 1 : 0,
     };
   }
 
@@ -38,6 +41,7 @@ class Event {
       createdAt: map['created_at'] as int,
       sourceText: map['source_text'] as String?,
       llmRaw: map['llm_raw'] as String?,
+      isArchived: (map['is_archived'] as int?) == 1,
     );
   }
 }

@@ -59,6 +59,7 @@ class ShareHandler {
       if (text != null && text.trim().isNotEmpty) {
         print('Initial shared text: $text');
         // 这里可以导航到输入页面并填充文本
+        // 暂时先打印出来
       }
     });
   }
