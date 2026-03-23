@@ -24,7 +24,9 @@ class EventRepo {
             created_at INTEGER NOT NULL,
             source_text TEXT,
             llm_raw TEXT,
-            is_archived INTEGER DEFAULT 0
+            is_archived INTEGER DEFAULT 0,
+            priority INTEGER DEFAULT 0,
+            focus_time INTEGER
           );
         ''');
         await db.execute('CREATE INDEX idx_events_start_at ON events(start_at);');
@@ -77,6 +79,11 @@ class EventRepo {
   Future<int> delete(int id) async {
     final database = await db;
     return database.delete('events', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> update(int id, Map<String, dynamic> updates) async {
+    final database = await db;
+    return database.update('events', updates, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> archiveExpired() async {

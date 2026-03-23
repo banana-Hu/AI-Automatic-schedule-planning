@@ -58,6 +58,11 @@ List<Event> parseEventsFromLlm(
     } catch (_) {
       continue;
     }
+    final priority = item['priority'];
+    int priorityValue = 0;
+    if (priority is int) {
+      priorityValue = priority.clamp(0, 5);
+    }
     result.add(Event(
       startAt: start.millisecondsSinceEpoch,
       durationMin: durationMin,
@@ -65,6 +70,7 @@ List<Event> parseEventsFromLlm(
       createdAt: createdAt,
       sourceText: sourceText,
       llmRaw: llmRaw,
+      priority: priorityValue,
     ));
   }
   return result;

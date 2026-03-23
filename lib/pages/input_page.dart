@@ -15,6 +15,7 @@ class InputPage extends StatefulWidget {
 class _InputPageState extends State<InputPage> {
   final _textController = TextEditingController();
   bool _loading = false;
+  int _priority = 0;
 
   @override
   void initState() {
@@ -61,7 +62,18 @@ class _InputPageState extends State<InputPage> {
         createdAt: createdAt,
         sourceText: raw,
         llmRaw: response,
-      );
+      )
+          .map((e) => Event(
+                id: e.id,
+                startAt: e.startAt,
+                durationMin: e.durationMin,
+                title: e.title,
+                createdAt: e.createdAt,
+                sourceText: e.sourceText,
+                llmRaw: e.llmRaw,
+                priority: _priority,
+              ))
+          .toList();
       if (events.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -117,6 +129,58 @@ class _InputPageState extends State<InputPage> {
               decoration: const InputDecoration(
                 hintText: '输入或粘贴日程文本…',
                 border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('优先级',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: List.generate(6, (index) {
+                        return GestureDetector(
+                          onTap: _loading
+                              ? null
+                              : () => setState(() => _priority = index),
+                          child: Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: _priority == index
+                                  ? Event.getPriorityColor(index)
+                                  : Colors.grey[200],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _priority == index
+                                    ? Colors.black
+                                    : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                Event.getPriorityText(index),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: _priority == index
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),

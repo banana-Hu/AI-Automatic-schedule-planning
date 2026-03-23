@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class Event {
   final int? id;
   final int startAt;
@@ -7,6 +9,8 @@ class Event {
   final String? sourceText;
   final String? llmRaw;
   final bool isArchived;
+  final int priority;
+  final int? focusTime;
 
   Event({
     this.id,
@@ -17,6 +21,8 @@ class Event {
     this.sourceText,
     this.llmRaw,
     this.isArchived = false,
+    this.priority = 0,
+    this.focusTime,
   });
 
   Map<String, dynamic> toMap() {
@@ -29,6 +35,8 @@ class Event {
       'source_text': sourceText,
       'llm_raw': llmRaw,
       'is_archived': isArchived ? 1 : 0,
+      'priority': priority,
+      'focus_time': focusTime,
     };
   }
 
@@ -42,6 +50,32 @@ class Event {
       sourceText: map['source_text'] as String?,
       llmRaw: map['llm_raw'] as String?,
       isArchived: (map['is_archived'] as int?) == 1,
+      priority: (map['priority'] as int?) ?? 0,
+      focusTime: map['focus_time'] as int?,
     );
+  }
+
+  static Color getPriorityColor(int priority) {
+    switch (priority) {
+      case 0: return Colors.grey[300]!; // 无优先级
+      case 1: return Colors.green[200]!; // 低
+      case 2: return Colors.blue[200]!; // 中低
+      case 3: return Colors.yellow[200]!; // 中
+      case 4: return Colors.orange[200]!; // 中高
+      case 5: return Colors.red[200]!; // 高
+      default: return Colors.grey[300]!;
+    }
+  }
+
+  static String getPriorityText(int priority) {
+    switch (priority) {
+      case 0: return '无';
+      case 1: return '低';
+      case 2: return '中低';
+      case 3: return '中';
+      case 4: return '中高';
+      case 5: return '高';
+      default: return '无';
+    }
   }
 }
