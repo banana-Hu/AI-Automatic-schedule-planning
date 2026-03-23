@@ -27,11 +27,10 @@ class MyApp extends StatelessWidget {
       prefs: prefs,
       repo: repo,
       child: MaterialApp(
-        title: '极简 AI 日程',
+        title: '极简 AI 日程2.0',
         theme: ThemeData(useMaterial3: true),
-        initialRoute: '/',
+        home: const HomePage(),
         routes: {
-          '/': (context) => const HomePage(),
           '/input': (context) => const InputPage(),
           '/settings': (context) => const SettingsPage(),
         },
