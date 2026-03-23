@@ -52,11 +52,12 @@ class EventRepo {
 
   Future<List<Event>> listActive() async {
     final database = await db;
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
     final rows = await database.query(
       'events',
       where: 'is_archived = ? AND start_at >= ?',
-      whereArgs: [0, now],
+      whereArgs: [0, startOfDay],
       orderBy: 'start_at ASC',
     );
     return rows.map((m) => Event.fromMap(m)).toList();
@@ -80,11 +81,12 @@ class EventRepo {
 
   Future<int> archiveExpired() async {
     final database = await db;
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
     final expiredEvents = await database.query(
       'events',
       where: 'is_archived = ? AND start_at < ?',
-      whereArgs: [0, now],
+      whereArgs: [0, startOfDay],
     );
     
     for (final row in expiredEvents) {

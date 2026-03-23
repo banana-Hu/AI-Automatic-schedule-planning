@@ -22,6 +22,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _load() async {
     final repo = AppState.of(context).repo;
+    await repo.archiveExpired();
     final list = await repo.listActive();
     if (mounted) {
       setState(() {
