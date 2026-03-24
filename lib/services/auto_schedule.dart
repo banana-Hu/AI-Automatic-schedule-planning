@@ -28,6 +28,8 @@ List<Event> linearReschedule(List<Event> existing, List<Event> incoming) {
       createdAt: e.createdAt,
       sourceText: e.sourceText,
       llmRaw: e.llmRaw,
+      priority: e.priority,
+      focusTime: e.focusTime,
     ));
   }
   return result;

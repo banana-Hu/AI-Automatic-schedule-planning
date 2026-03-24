@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_state.dart';
+import '../models/event.dart';
 import '../services/deepseek_client.dart';
 import '../services/prompt_builder.dart';
 import '../services/json_extract.dart';
