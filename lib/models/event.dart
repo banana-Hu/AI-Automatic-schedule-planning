@@ -11,6 +11,8 @@ class Event {
   final bool isArchived;
   final int priority;
   final int? focusTime;
+  final int delayCount;
+  final int? originalStartAt;
 
   Event({
     this.id,
@@ -23,6 +25,8 @@ class Event {
     this.isArchived = false,
     this.priority = 0,
     this.focusTime,
+    this.delayCount = 0,
+    this.originalStartAt,
   });
 
   Map<String, dynamic> toMap() {
@@ -37,6 +41,8 @@ class Event {
       'is_archived': isArchived ? 1 : 0,
       'priority': priority,
       'focus_time': focusTime,
+      'delay_count': delayCount,
+      'original_start_at': originalStartAt,
     };
   }
 
@@ -52,6 +58,8 @@ class Event {
       isArchived: (map['is_archived'] as int?) == 1,
       priority: (map['priority'] as int?) ?? 0,
       focusTime: map['focus_time'] as int?,
+      delayCount: (map['delay_count'] as int?) ?? 0,
+      originalStartAt: map['original_start_at'] as int?,
     );
   }
 

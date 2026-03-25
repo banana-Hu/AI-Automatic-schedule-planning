@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../app_state.dart';
 import '../models/event.dart';
+import '../controllers/scheduler_service.dart';
 import 'detail_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -17,7 +18,13 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _checkReschedule();
     _load();
+  }
+
+  Future<void> _checkReschedule() async {
+    final repo = AppState.of(context).repo;
+    await SchedulerService.checkAndReschedule(context, repo);
   }
 
   Future<void> _load() async {
