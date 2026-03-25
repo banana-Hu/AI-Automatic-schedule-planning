@@ -5,6 +5,7 @@ import '../services/deepseek_client.dart';
 import '../services/prompt_builder.dart';
 import '../services/json_extract.dart';
 import '../services/auto_schedule.dart';
+import 'goal_planner_page.dart';
 
 class InputPage extends StatefulWidget {
   const InputPage({super.key});
@@ -194,6 +195,17 @@ class _InputPageState extends State<InputPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Text('解析并保存'),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const GoalPlannerPage()),
+                );
+              },
+              child: const Text('目标规划'),
             ),
           ],
         ),

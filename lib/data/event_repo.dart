@@ -25,13 +25,15 @@ class EventRepo {
             source_text TEXT,
             llm_raw TEXT,
             is_archived INTEGER DEFAULT 0,
+            is_completed INTEGER DEFAULT 0,
             priority INTEGER DEFAULT 0,
             focus_time INTEGER,
             delay_count INTEGER DEFAULT 0,
             original_start_at INTEGER
           );
         ''');
-        await db.execute('CREATE INDEX idx_events_start_at ON events(start_at);');
+        await db
+            .execute('CREATE INDEX idx_events_start_at ON events(start_at);');
       },
     );
   }
@@ -57,7 +59,8 @@ class EventRepo {
   Future<List<Event>> listActive() async {
     final database = await db;
     final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+    final startOfDay =
+        DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
     final rows = await database.query(
       'events',
       where: 'is_archived = ? AND start_at >= ?',
@@ -91,13 +94,14 @@ class EventRepo {
   Future<int> archiveExpired() async {
     final database = await db;
     final now = DateTime.now();
-    final startOfDay = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+    final startOfDay =
+        DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
     final expiredEvents = await database.query(
       'events',
       where: 'is_archived = ? AND start_at < ?',
       whereArgs: [0, startOfDay],
     );
-    
+
     for (final row in expiredEvents) {
       final id = row['id'] as int;
       await database.update(
@@ -107,7 +111,7 @@ class EventRepo {
         whereArgs: [id],
       );
     }
-    
+
     return expiredEvents.length;
   }
 

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini 问答</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .message {
+            margin-bottom: 15px;
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 18px;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            align-self: flex-end;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        .ai-message {
+            background-color: #f1f1f1;
+            align-self: flex-start;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 16px;
+        }
+        button {
+            padding: 0 20px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #1976d2;
+        }
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background-color: #999;
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+        .typing-indicator span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+        @keyframes typing {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+        .status {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gemini 问答</h1>
+        <div class="status">
+            <span id="connection-status">正在连接...</span>
+        </div>
+        <div class="chat-container" id="chat-container">
+            <!-- 消息将在这里显示 -->
+        </div>
+        <div class="input-container">
+            <input type="text" id="message-input" placeholder="输入你的问题..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">发送</button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let isConnected = false;
+        let isTyping = false;
+
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:8080');
+
+            ws.onopen = function() {
+                console.log('WebSocket连接已打开');
+                document.getElementById('connection-status').textContent = '已连接';
+                document.getElementById('connection-status').style.color = 'green';
+                isConnected = true;
+            };
+
+            ws.onmessage = function(event) {
+                console.log('收到消息:', event.data);
+                const message = JSON.parse(event.data);
+                displayMessage(message.text, message.isUser);
+                if (!message.isUser) {
+                    isTyping = false;
+                    removeTypingIndicator();
+                }
+            };
+
+            ws.onclose = function() {
+                console.log('WebSocket连接已关闭');
+                document.getElementById('connection-status').textContent = '已断开连接';
+                document.getElementById('connection-status').style.color = 'red';
+                isConnected = false;
+                // 尝试重连
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket错误:', error);
+                document.getElementById('connection-status').textContent = '连接错误';
+                document.getElementById('connection-status').style.color = 'red';
+            };
+        }
+
+        function displayMessage(text, isUser) {
+            const chatContainer = document.getElementById('chat-container');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'ai-message'}`;
+            messageDiv.textContent = text;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function addTypingIndicator() {
+            if (isTyping) return;
+            isTyping = true;
+            const chatContainer = document.getElementById('chat-container');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'typing-indicator ai-message';
+            typingDiv.id = 'typing-indicator';
+            typingDiv.innerHTML = '<span></span><span></span><span></span>';
+            chatContainer.appendChild(typingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (text === '' || !isConnected) return;
+
+            const message = {
+                text: text,
+                isUser: true
+            };
+
+            ws.send(JSON.stringify(message));
+            displayMessage(text, true);
+            input.value = '';
+
+            // 显示AI正在输入的指示器
+            addTypingIndicator();
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // 初始连接
+        connectWebSocket();
+    </script>
+</body>
+</html>
