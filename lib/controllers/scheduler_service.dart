@@ -31,7 +31,7 @@ class SchedulerService {
           final newPriority = event.priority < 5 ? event.priority + 1 : 5;
           
           // 查找第一个足以容纳该过期任务时长的空隙
-          final gapStartTime = _findFirstAvailableGap(futureEvents, event.durationMin, now);
+          final gapStartTime = findFirstAvailableGap(futureEvents, event.durationMin, now);
           
           if (gapStartTime != null) {
             // 更新任务信息
@@ -68,7 +68,7 @@ class SchedulerService {
   }
   
   /// 查找第一个可用的时间空隙
-  static int? _findFirstAvailableGap(List<Event> futureEvents, int durationMin, int currentTime) {
+  static int? findFirstAvailableGap(List<Event> futureEvents, int durationMin, int currentTime) {
     final durationMs = durationMin * 60 * 1000;
     
     // 检查当前时间到第一个事件之间的空隙

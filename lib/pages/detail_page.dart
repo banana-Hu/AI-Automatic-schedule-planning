@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/event.dart';
 import 'focus_timer_page.dart';
 import '../app_state.dart';
+import '../controllers/scheduler_service.dart';
 
 class DetailPage extends StatefulWidget {
   final Event event;
@@ -88,11 +89,89 @@ class _DetailPageState extends State<DetailPage> {
           isArchived: _event.isArchived,
           priority: newPriority,
           focusTime: _event.focusTime,
+          delayCount: _event.delayCount,
+          originalStartAt: _event.originalStartAt,
         );
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('优先级已更新')),
+        );
+      }
+    }
+  }
+
+  Future<void> _delayEvent() async {
+    try {
+      final repo = AppState.of(context).repo;
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      // 获取当前时间后的所有活跃日程
+      final futureEvents = await repo.listActive();
+      futureEvents.sort((a, b) => a.startAt.compareTo(b.startAt));
+
+      // 查找第一个可用的时间空隙
+      final gapStartTime = SchedulerService.findFirstAvailableGap(
+        futureEvents,
+        _event.durationMin,
+        now,
+      );
+
+      if (gapStartTime != null) {
+        // 优先级升级：priority = min(5, priority + 1)
+        final newPriority = _event.priority < 5 ? _event.priority + 1 : 5;
+
+        // 更新任务信息
+        final updates = {
+          'start_at': gapStartTime,
+          'priority': newPriority,
+          'delay_count': _event.delayCount + 1,
+        };
+
+        // 如果是第一次延迟，记录原始开始时间
+        if (_event.originalStartAt == null) {
+          updates['original_start_at'] = _event.startAt;
+        }
+
+        // 保存改动
+        await repo.update(_event.id!, updates);
+
+        // 更新UI
+        setState(() {
+          _event = Event(
+            id: _event.id,
+            startAt: gapStartTime,
+            durationMin: _event.durationMin,
+            title: _event.title,
+            createdAt: _event.createdAt,
+            sourceText: _event.sourceText,
+            llmRaw: _event.llmRaw,
+            isArchived: _event.isArchived,
+            priority: newPriority,
+            focusTime: _event.focusTime,
+            delayCount: _event.delayCount + 1,
+            originalStartAt: _event.originalStartAt ?? _event.startAt,
+          );
+        });
+
+        // 显示成功提示
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('任务已成功延迟'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Delay event error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('延迟任务失败，请重试'),
+            duration: Duration(seconds: 2),
+          ),
         );
       }
     }
@@ -203,24 +282,45 @@ class _DetailPageState extends State<DetailPage> {
               ),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => FocusTimerPage(event: _event),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FocusTimerPage(event: _event),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.timer),
+                    label: const Text('开始专注'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
                   ),
-                );
-              },
-              icon: const Icon(Icons.timer),
-              label: const Text('开始专注'),
-              style: ElevatedButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _delayEvent,
+                    icon: const Icon(Icons.schedule),
+                    label: const Text('延迟任务'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             if (_event.sourceText != null && _event.sourceText!.isNotEmpty)
               Card(
