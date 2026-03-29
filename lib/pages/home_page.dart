@@ -3,7 +3,6 @@ import '../app_state.dart';
 import '../models/event.dart';
 import '../controllers/scheduler_service.dart';
 import 'detail_page.dart';
-import 'gemini_chat_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,13 +18,33 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _checkReschedule();
-    _load();
+    _initialize();
   }
 
-  Future<void> _checkReschedule() async {
-    final repo = AppState.of(context).repo;
-    await SchedulerService.checkAndReschedule(context, repo);
+  Future<void> _initialize() async {
+    try {
+      final repo = AppState.of(context).repo;
+      // 先检查并重新安排过期任务
+      final hasRescheduled = await SchedulerService.checkAndReschedule(repo);
+      // 然后加载任务列表
+      await _load();
+      // 如果有任务被顺延，显示提醒
+      if (hasRescheduled && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('检测到过期任务，已自动顺延并提升优先级'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('初始化错误: $e');
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
   }
 
   Future<void> _load() async {
@@ -239,18 +258,12 @@ class _HomePageState extends State<HomePage> {
           if (index == 1) {
             Navigator.pushNamed(context, '/input').then((_) => _load());
           } else if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const GeminiChatPage()),
-            );
-          } else if (index == 3) {
             Navigator.pushNamed(context, '/settings');
           }
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.list), label: '日程'),
           BottomNavigationBarItem(icon: Icon(Icons.add), label: '输入'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Gemini'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: '设置'),
         ],
       ),
