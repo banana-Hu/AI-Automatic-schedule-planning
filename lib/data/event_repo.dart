@@ -3,39 +3,46 @@ import 'package:path/path.dart';
 import '../models/event.dart';
 
 class EventRepo {
-  EventRepo() {
-    _init();
-  }
+  EventRepo();
 
   Database? _db;
+  bool _initializing = false;
 
   Future<void> _init() async {
-    final dbPath = await getDatabasesPath();
-    _db = await openDatabase(
-      join(dbPath, 'ai_schedule.db'),
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            start_at INTEGER NOT NULL,
-            duration_min INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            source_text TEXT,
-            llm_raw TEXT,
-            is_archived INTEGER DEFAULT 0,
-            is_completed INTEGER DEFAULT 0,
-            priority INTEGER DEFAULT 0,
-            focus_time INTEGER,
-            delay_count INTEGER DEFAULT 0,
-            original_start_at INTEGER
-          );
-        ''');
-        await db
-            .execute('CREATE INDEX idx_events_start_at ON events(start_at);');
-      },
-    );
+    if (_initializing) return;
+    _initializing = true;
+    try {
+      final dbPath = await getDatabasesPath();
+      _db = await openDatabase(
+        join(dbPath, 'ai_schedule.db'),
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              start_at INTEGER NOT NULL,
+              duration_min INTEGER NOT NULL,
+              title TEXT NOT NULL,
+              created_at INTEGER NOT NULL,
+              source_text TEXT,
+              llm_raw TEXT,
+              is_archived INTEGER DEFAULT 0,
+              is_completed INTEGER DEFAULT 0,
+              priority INTEGER DEFAULT 0,
+              focus_time INTEGER,
+              delay_count INTEGER DEFAULT 0,
+              original_start_at INTEGER
+            );
+          ''');
+          await db
+              .execute('CREATE INDEX idx_events_start_at ON events(start_at);');
+        },
+      );
+    } catch (e) {
+      print('Database initialization error: $e');
+    } finally {
+      _initializing = false;
+    }
   }
 
   Future<Database> get db async {

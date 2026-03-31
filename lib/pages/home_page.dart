@@ -42,38 +42,73 @@ class _HomePageState extends State<HomePage> {
       if (mounted) {
         setState(() {
           _loading = false;
+          _events = [];
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('加载失败: $e')),
+        );
       }
     }
   }
 
   Future<void> _load() async {
-    final repo = AppState.of(context).repo;
-    await repo.archiveExpired();
-    final list = await repo.listActive();
-    if (mounted) {
-      setState(() {
-        _events = list;
-        _loading = false;
-      });
+    try {
+      final repo = AppState.of(context).repo;
+      await repo.archiveExpired();
+      final list = await repo.listActive();
+      if (mounted) {
+        setState(() {
+          _events = list;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      print('加载错误: $e');
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _events = [];
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('加载失败: $e')),
+        );
+      }
     }
   }
 
   Future<void> _deleteEvent(Event event) async {
-    final repo = AppState.of(context).repo;
-    await repo.delete(event.id!);
-    await _load();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('日程已删除')),
-      );
+    try {
+      final repo = AppState.of(context).repo;
+      await repo.delete(event.id!);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('日程已删除')),
+        );
+      }
+    } catch (e) {
+      print('删除错误: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除失败: $e')),
+        );
+      }
     }
   }
 
   Future<void> _toggleCompleted(Event event, bool isCompleted) async {
-    final repo = AppState.of(context).repo;
-    await repo.update(event.id!, {'is_completed': isCompleted ? 1 : 0});
-    await _load();
+    try {
+      final repo = AppState.of(context).repo;
+      await repo.update(event.id!, {'is_completed': isCompleted ? 1 : 0});
+      await _load();
+    } catch (e) {
+      print('更新错误: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('更新失败: $e')),
+        );
+      }
+    }
   }
 
   @override

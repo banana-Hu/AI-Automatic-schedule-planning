@@ -8,9 +8,23 @@ import 'data/event_repo.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  final repo = EventRepo();
-  runApp(MyApp(prefs: prefs, repo: repo));
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final repo = EventRepo();
+    // 确保数据库初始化完成
+    await repo.db;
+    runApp(MyApp(prefs: prefs, repo: repo));
+  } catch (e) {
+    print('Error initializing app: $e');
+    // 即使初始化失败，也运行应用，避免在某些设备上完全显示不出来
+    runApp(const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Text('应用初始化失败，请重启应用'),
+        ),
+      ),
+    ));
+  }
 }
 
 class MyApp extends StatelessWidget {
