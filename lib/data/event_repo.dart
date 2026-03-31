@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/event.dart';
 
 class EventRepo {
@@ -12,9 +13,11 @@ class EventRepo {
     if (_initializing) return;
     _initializing = true;
     try {
-      final dbPath = await getDatabasesPath();
+      // 使用应用内部存储路径，避免存储权限问题
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final dbPath = join(appDocDir.path, 'ai_schedule.db');
       _db = await openDatabase(
-        join(dbPath, 'ai_schedule.db'),
+        dbPath,
         version: 1,
         onCreate: (db, version) async {
           await db.execute('''
@@ -38,6 +41,7 @@ class EventRepo {
               .execute('CREATE INDEX idx_events_start_at ON events(start_at);');
         },
       );
+      print('Database initialized at: $dbPath');
     } catch (e) {
       print('Database initialization error: $e');
     } finally {
