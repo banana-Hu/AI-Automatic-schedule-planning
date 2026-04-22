@@ -49,7 +49,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: '我的日程本',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.warmDiaryTheme,
+        theme: AppTheme.cuteTheme,
         home: const HomePage(),
         routes: {
           '/input': (context) => const InputPage(),
