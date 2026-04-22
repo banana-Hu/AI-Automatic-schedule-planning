@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/home_page.dart';
 import 'pages/input_page.dart';
 import 'pages/settings_page.dart';
 import 'app_state.dart';
 import 'data/event_repo.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: AppTheme.cardBackground,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ));
+  
   try {
     final prefs = await SharedPreferences.getInstance();
     final repo = EventRepo();
-    // 确保数据库初始化完成
     await repo.db;
     runApp(MyApp(prefs: prefs, repo: repo));
   } catch (e) {
     print('Error initializing app: $e');
-    // 即使初始化失败，也运行应用，避免在某些设备上完全显示不出来
     runApp(const MaterialApp(
       home: Scaffold(
         body: Center(
@@ -39,8 +47,9 @@ class MyApp extends StatelessWidget {
       prefs: prefs,
       repo: repo,
       child: MaterialApp(
-        title: '极简 AI 日程2.0',
-        theme: ThemeData(useMaterial3: true),
+        title: '我的日程本',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.warmDiaryTheme,
         home: const HomePage(),
         routes: {
           '/input': (context) => const InputPage(),

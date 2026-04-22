@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../app_state.dart';
 import '../models/event.dart';
 import '../controllers/scheduler_service.dart';
+import '../theme/app_theme.dart';
 import 'detail_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -11,9 +13,10 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   List<Event> _events = [];
   bool _loading = true;
+  final Set<int> _completingIds = {};
 
   @override
   void initState() {
@@ -24,16 +27,20 @@ class _HomePageState extends State<HomePage> {
   Future<void> _initialize() async {
     try {
       final repo = AppState.of(context).repo;
-      // 先检查并重新安排过期任务
       final hasRescheduled = await SchedulerService.checkAndReschedule(repo);
-      // 然后加载任务列表
       await _load();
-      // 如果有任务被顺延，显示提醒
       if (hasRescheduled && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('检测到过期任务，已自动顺延并提升优先级'),
-            duration: Duration(seconds: 3),
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                const Text('检测到过期任务，已自动顺延并提升优先级'),
+              ],
+            ),
+            duration: const Duration(seconds: 3),
+            backgroundColor: AppTheme.textBrown,
           ),
         );
       }
@@ -44,9 +51,6 @@ class _HomePageState extends State<HomePage> {
           _loading = false;
           _events = [];
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载失败: $e')),
-        );
       }
     }
   }
@@ -69,9 +73,6 @@ class _HomePageState extends State<HomePage> {
           _loading = false;
           _events = [];
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('加载失败: $e')),
-        );
       }
     }
   }
@@ -81,231 +82,575 @@ class _HomePageState extends State<HomePage> {
       final repo = AppState.of(context).repo;
       await repo.delete(event.id!);
       await _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('日程已删除')),
-        );
-      }
     } catch (e) {
       print('删除错误: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除失败: $e')),
-        );
-      }
     }
   }
 
   Future<void> _toggleCompleted(Event event, bool isCompleted) async {
+    if (_completingIds.contains(event.id)) return;
+    
+    _completingIds.add(event.id!);
+    
     try {
       final repo = AppState.of(context).repo;
       await repo.update(event.id!, {'is_completed': isCompleted ? 1 : 0});
+      
+      if (isCompleted && mounted) {
+        HapticFeedback.mediumImpact();
+      }
+      
       await _load();
     } catch (e) {
       print('更新错误: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('更新失败: $e')),
-        );
-      }
+    } finally {
+      _completingIds.remove(event.id);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('日程')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _events.isEmpty
-              ? const Center(child: Text('暂无日程'))
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    itemCount: _events.length,
-                    itemBuilder: (context, i) {
-                      final e = _events[i];
-                      final start =
-                          DateTime.fromMillisecondsSinceEpoch(e.startAt);
-                      final end = start.add(Duration(minutes: e.durationMin));
-                      return DragTarget<int>(
-                        onAccept: (int draggedIndex) {
-                          if (draggedIndex != i) {
-                            setState(() {
-                              final draggedEvent = _events[draggedIndex];
-                              _events.removeAt(draggedIndex);
-                              _events.insert(i, draggedEvent);
-                            });
-                          }
-                        },
-                        builder: (context, candidateData, rejectedData) {
-                          return Draggable<int>(
-                            data: i,
-                            feedback: Container(
-                              width: MediaQuery.of(context).size.width * 0.8,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Event.getPriorityColor(e.priority),
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.3),
-                                    spreadRadius: 2,
-                                    blurRadius: 5,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: ListTile(
-                                title: Text(e.title,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold)),
-                                subtitle: Text(
-                                  '${_formatTime(start)} - ${_formatTime(end)}',
-                                ),
-                              ),
-                            ),
-                            child: Dismissible(
-                              key: ValueKey(e.id),
-                              direction: DismissDirection.startToEnd,
-                              confirmDismiss: (direction) async {
-                                if (direction == DismissDirection.startToEnd) {
-                                  final confirmed = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('删除确认'),
-                                      content: Text('确定要删除"${e.title}"吗？'),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context, false),
-                                          child: const Text('取消'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(context, true),
-                                          child: const Text('删除'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (confirmed == true) {
-                                    await _deleteEvent(e);
-                                    return true;
-                                  }
-                                }
-                                return false;
-                              },
-                              background: Container(
-                                margin: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.red[100],
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                alignment: Alignment.centerLeft,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 20),
-                                child:
-                                    const Icon(Icons.delete, color: Colors.red),
-                              ),
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: e.isCompleted
-                                      ? Colors.grey[300]
-                                      : Event.getPriorityColor(e.priority),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.grey.withOpacity(0.2),
-                                      spreadRadius: 1,
-                                      blurRadius: 3,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: ListTile(
-                                  leading: Checkbox(
-                                    value: e.isCompleted,
-                                    onChanged: (value) async {
-                                      await _toggleCompleted(e, value ?? false);
-                                    },
-                                  ),
-                                  title: Text(
-                                    e.title,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      decoration: e.isCompleted
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                      color: e.isCompleted
-                                          ? Colors.grey[600]
-                                          : null,
-                                    ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${_formatTime(start)} - ${_formatTime(end)} · ${e.durationMin}分钟',
-                                        style: e.isCompleted
-                                            ? TextStyle(color: Colors.grey[600])
-                                            : null,
-                                      ),
-                                      Text(
-                                        '优先级: ${Event.getPriorityText(e.priority)}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: e.isCompleted
-                                              ? Colors.grey[500]
-                                              : Colors.grey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  trailing: e.focusTime != null
-                                      ? const Icon(Icons.timer)
-                                      : null,
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            DetailPage(event: e),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+      backgroundColor: AppTheme.primaryCream,
+      appBar: AppBar(
+        backgroundColor: AppTheme.primaryCream,
+        elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppTheme.cardBackground,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.shadowColor.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.book_rounded, color: AppTheme.accentPeach, size: 24),
+              SizedBox(width: 8),
+              Text(
+                '我的日程',
+                style: TextStyle(
+                  color: AppTheme.textBrown,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1,
                 ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        onTap: (index) {
-          if (index == 1) {
-            Navigator.pushNamed(context, '/input').then((_) => _load());
-          } else if (index == 2) {
-            Navigator.pushNamed(context, '/settings');
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.list), label: '日程'),
-          BottomNavigationBarItem(icon: Icon(Icons.add), label: '输入'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: '设置'),
+              ),
+            ],
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: _loading
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppTheme.cardBackground,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.shadowColor.withOpacity(0.15),
+                          blurRadius: 20,
+                        ),
+                      ],
+                    ),
+                    child: const CircularProgressIndicator(
+                      color: AppTheme.accentPeach,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    '正在加载...',
+                    style: TextStyle(
+                      color: AppTheme.textLightBrown,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : _events.isEmpty
+              ? _buildEmptyState()
+              : _buildEventList(),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.cardBackground,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.shadowColor.withOpacity(0.1),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(0, Icons.calendar_today_rounded, '日程'),
+                _buildNavItem(1, Icons.edit_rounded, '写日记'),
+                _buildNavItem(2, Icons.settings_rounded, '设置'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    return InkWell(
+      onTap: () {
+        if (index == 1) {
+          Navigator.pushNamed(context, '/input').then((_) => _load());
+        } else if (index == 2) {
+          Navigator.pushNamed(context, '/settings');
+        }
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: index == 0 ? AppTheme.accentPeach.withOpacity(0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: index == 0 ? AppTheme.accentPeach : AppTheme.textLightBrown,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: index == 0 ? AppTheme.accentPeach : AppTheme.textLightBrown,
+                fontSize: 12,
+                fontWeight: index == 0 ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: AppTheme.cardBackground,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.shadowColor.withOpacity(0.1),
+                  blurRadius: 20,
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.auto_stories_rounded,
+              size: 64,
+              color: AppTheme.accentPeach,
+            ),
+          ),
+          const SizedBox(height: 32),
+          const Text(
+            '今天想记录些什么呢？',
+            style: TextStyle(
+              color: AppTheme.textBrown,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            '点击下方"写日记"开始添加日程',
+            style: TextStyle(
+              color: AppTheme.textLightBrown,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 48),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pushNamed(context, '/input').then((_) => _load());
+            },
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('添加第一条日程'),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: AppTheme.cardBackground,
+            ),
+          ),
         ],
       ),
     );
   }
 
+  Widget _buildEventList() {
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: AppTheme.accentPeach,
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 16, bottom: 100),
+        itemCount: _events.length,
+        itemBuilder: (context, i) {
+          final e = _events[i];
+          final start = DateTime.fromMillisecondsSinceEpoch(e.startAt);
+          final end = start.add(Duration(minutes: e.durationMin));
+          final isCompleting = _completingIds.contains(e.id);
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            child: _DiaryEventCard(
+              event: e,
+              start: start,
+              end: end,
+              isCompleting: isCompleting,
+              onToggleComplete: (value) => _toggleCompleted(e, value),
+              onDelete: () => _deleteEvent(e),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DetailPage(event: e),
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DiaryEventCard extends StatefulWidget {
+  final Event event;
+  final DateTime start;
+  final DateTime end;
+  final bool isCompleting;
+  final Function(bool) onToggleComplete;
+  final VoidCallback onDelete;
+  final VoidCallback onTap;
+
+  const _DiaryEventCard({
+    required this.event,
+    required this.start,
+    required this.end,
+    required this.isCompleting,
+    required this.onToggleComplete,
+    required this.onDelete,
+    required this.onTap,
+  });
+
+  @override
+  State<_DiaryEventCard> createState() => _DiaryEventCardState();
+}
+
+class _DiaryEventCardState extends State<_DiaryEventCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _strikeAnimation;
+  late Animation<double> _fadeAnimation;
+  bool _showDelete = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _strikeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+    _fadeAnimation = Tween<double>(begin: 1, end: 0.6).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleComplete(bool value) {
+    if (value) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+    widget.onToggleComplete(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final e = widget.event;
+    final isCompleted = e.isCompleted;
+    final priorityColor = AppTheme.warmPastelColors[e.priority % 6];
+
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity != null && details.primaryVelocity! > 200) {
+          setState(() => _showDelete = true);
+        } else if (details.primaryVelocity != null && details.primaryVelocity! < -200) {
+          setState(() => _showDelete = false);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        transform: Matrix4.translationValues(_showDelete ? -60 : 0, 0, 0),
+        child: Stack(
+          children: [
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: Container(
+                width: 60,
+                decoration: BoxDecoration(
+                  color: Colors.red[400],
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: IconButton(
+                  onPressed: widget.onDelete,
+                  icon: const Icon(Icons.delete_rounded, color: Colors.white),
+                ),
+              ),
+            ),
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return GestureDetector(
+                  onTap: widget.onTap,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isCompleted
+                          ? AppTheme.dividerColor.withOpacity(0.3)
+                          : priorityColor.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isCompleted
+                            ? AppTheme.dividerColor
+                            : priorityColor.withOpacity(0.6),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.shadowColor.withOpacity(isCompleted ? 0.05 : 0.1),
+                          blurRadius: isCompleted ? 4 : 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: 6,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: priorityColor.withOpacity(0.8),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: () => _handleComplete(!isCompleted),
+                                  child: AnimatedBuilder(
+                                    animation: _strikeAnimation,
+                                    builder: (context, child) {
+                                      return Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          color: isCompleted
+                                              ? AppTheme.accentPeach
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: isCompleted
+                                                ? AppTheme.accentPeach
+                                                : AppTheme.textLightBrown,
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: isCompleted
+                                            ? const Icon(
+                                                Icons.check_rounded,
+                                                size: 18,
+                                                color: Colors.white,
+                                              )
+                                            : null,
+                                      );
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      AnimatedBuilder(
+                                        animation: _strikeAnimation,
+                                        builder: (context, child) {
+                                          return Stack(
+                                            children: [
+                                              Text(
+                                                e.title,
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color.lerp(
+                                                    AppTheme.textBrown,
+                                                    AppTheme.textLightBrown,
+                                                    _fadeAnimation.value,
+                                                  ),
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              if (_strikeAnimation.value > 0)
+                                                Positioned.fill(
+                                                  child: LayoutBuilder(
+                                                    builder: (context, constraints) {
+                                                      return Align(
+                                                        alignment: Alignment.centerLeft,
+                                                        child: Container(
+                                                          width: constraints.maxWidth *
+                                                              _strikeAnimation.value,
+                                                          height: 2,
+                                                          color: AppTheme.textLightBrown,
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ),
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.access_time_rounded,
+                                            size: 14,
+                                            color: isCompleted
+                                                ? AppTheme.textLightBrown.withOpacity(0.5)
+                                                : AppTheme.textLightBrown,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${_formatTime(widget.start)} - ${_formatTime(widget.end)}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: isCompleted
+                                                  ? AppTheme.textLightBrown.withOpacity(0.5)
+                                                  : AppTheme.textLightBrown,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: priorityColor.withOpacity(0.3),
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              '${e.durationMin}分钟',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: isCompleted
+                                                    ? AppTheme.textLightBrown.withOpacity(0.5)
+                                                    : AppTheme.textLightBrown,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      if (e.focusTime != null) ...[
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.timer_rounded,
+                                              size: 14,
+                                              color: isCompleted
+                                                  ? AppTheme.accentPeach.withOpacity(0.5)
+                                                  : AppTheme.accentPeach,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              '专注 ${e.focusTime} 分钟',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: isCompleted
+                                                    ? AppTheme.accentPeach.withOpacity(0.5)
+                                                    : AppTheme.accentPeach,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: AppTheme.textLightBrown.withOpacity(0.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _formatTime(DateTime d) {
-    return '${d.month}/${d.day} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 }
