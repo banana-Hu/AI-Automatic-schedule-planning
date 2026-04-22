@@ -15,14 +15,21 @@ class _SettingsPageState extends State<SettingsPage> {
   late TextEditingController _controller;
   bool _obscureText = true;
   bool _hasChanges = false;
+  String _initialKey = '';
 
   @override
   void initState() {
     super.initState();
-    final key = AppState.of(context).apiKey ?? '';
-    _controller = TextEditingController(text: key);
+    _controller = TextEditingController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _initialKey = AppState.of(context).apiKey ?? '';
+    _controller.text = _initialKey;
     _controller.addListener(() {
-      if (!_hasChanges && _controller.text != key) {
+      if (!_hasChanges && _controller.text != _initialKey) {
         setState(() => _hasChanges = true);
       }
     });

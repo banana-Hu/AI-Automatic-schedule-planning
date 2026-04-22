@@ -49,7 +49,11 @@ class _InputPageState extends State<InputPage> {
       isUser: false,
       time: DateTime.now(),
     ));
+  }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is String && args.isNotEmpty) {
       _textController.text = args;
